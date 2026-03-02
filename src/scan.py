@@ -9,6 +9,7 @@ import subprocess
 import tarfile
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 
 import yaml
@@ -177,56 +178,93 @@ class VulnerabilityScanner:
         logging.info(f"Applied registry prefix: {registry} to {len(updated)} images")
         return updated
 
+    @staticmethod
+    def _process_template(template_path, show_links):
+        """Preprocess the HTML template to include/exclude links sections.
+
+        Conditional blocks are marked with {{/* LINKS_ONLY */}} ... {{/* END_LINKS_ONLY */}}.
+        The placeholder __TOTAL_COLS__ is replaced with the correct colspan value.
+        """
+        with open(template_path, "r") as f:
+            content = f.read()
+
+        if show_links:
+            # Keep LINKS_ONLY block contents, strip the markers
+            content = content.replace("{{/* LINKS_ONLY */}}\n", "")
+            content = content.replace("{{/* END_LINKS_ONLY */}}\n", "")
+            content = content.replace("__TOTAL_COLS__", "6")
+        else:
+            # Remove LINKS_ONLY blocks entirely (markers + content)
+            content = re.sub(
+                r"\{\{/\* LINKS_ONLY \*/\}\}\n.*?\{\{/\* END_LINKS_ONLY \*/\}\}\n",
+                "",
+                content,
+                flags=re.DOTALL,
+            )
+            content = content.replace("__TOTAL_COLS__", "5")
+
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".tpl", delete=False)
+        tmp.write(content)
+        tmp.close()
+        return tmp.name
+
     def run_trivy_scan(
         self, image, show_links=True, severity_levels="LOW,MEDIUM,HIGH,CRITICAL"
     ):
         html_file_name = f"{image.replace('/', '_').replace(':', '_')}.html"
         html_file_path = os.path.join(os.getcwd(), html_file_name)
-        self.html_files.append(html_file_path)
+        if html_file_path not in self.html_files:
+            self.html_files.append(html_file_path)
 
-        template_name = "html.tpl" if show_links else "html-no-links.tpl"
         templates_dir = os.path.join(
             os.path.abspath(os.path.dirname(__file__)), "templates"
         )
-        trivy_cmd = [
-            "trivy",
-            "image",
-            "-q",
-            "--severity",
-            severity_levels,
-            "-f",
-            "template",
-            "--template",
-            f"@{templates_dir}/{template_name}",
-            "-o",
-            html_file_path,
-            "--scanners",
-            "vuln",
-            image,
-        ]
+        template_path = os.path.join(templates_dir, "html.tpl")
+        processed_template = self._process_template(template_path, show_links)
 
-        retries = 0
-        while retries < self.MAX_RETRIES:
-            logging.debug("Running command: %s", " ".join(trivy_cmd))
-            result = subprocess.run(trivy_cmd, capture_output=True, text=True)
+        try:
+            trivy_cmd = [
+                "trivy",
+                "image",
+                "-q",
+                "--severity",
+                severity_levels,
+                "-f",
+                "template",
+                "--template",
+                f"@{processed_template}",
+                "-o",
+                html_file_path,
+                "--scanners",
+                "vuln",
+                image,
+            ]
 
-            if result.returncode == 0:
-                logging.info(f"Trivy scan completed for image {image}")
-                return html_file_path
-            elif "TOOMANYREQUESTS" in result.stderr:
-                retries += 1
-                logging.warning(
-                    f"Rate limit error for image {image}. Retrying {retries}/{self.MAX_RETRIES} after {self.RETRY_DELAY} seconds."
-                )
-                time.sleep(self.RETRY_DELAY)
-            else:
-                logging.error(f"Error running Trivy for image {image}: {result.stderr}")
-                return None
+            retries = 0
+            while retries < self.MAX_RETRIES:
+                logging.debug("Running command: %s", " ".join(trivy_cmd))
+                result = subprocess.run(trivy_cmd, capture_output=True, text=True)
 
-        logging.error(
-            f"Trivy scan failed after {self.MAX_RETRIES} retries for image {image}"
-        )
-        return None
+                if result.returncode == 0:
+                    logging.info(f"Trivy scan completed for image {image}")
+                    return html_file_path
+                elif "TOOMANYREQUESTS" in result.stderr:
+                    retries += 1
+                    logging.warning(
+                        f"Rate limit error for image {image}. Retrying {retries}/{self.MAX_RETRIES} after {self.RETRY_DELAY} seconds."
+                    )
+                    time.sleep(self.RETRY_DELAY)
+                else:
+                    logging.error(f"Error running Trivy for image {image}: {result.stderr}")
+                    return None
+
+            logging.error(
+                f"Trivy scan failed after {self.MAX_RETRIES} retries for image {image}"
+            )
+            return None
+        finally:
+            if os.path.exists(processed_template):
+                os.unlink(processed_template)
 
     def scan(
         self,
@@ -429,15 +467,15 @@ class VulnerabilityScanner:
             file_name = os.path.basename(report_path)
 
             # Step 1: Get upload URL
-            get_url_payload = json.dumps(
+            get_url_params = urllib.parse.urlencode(
                 {"filename": file_name, "length": file_size}
             ).encode()
             get_url_req = urllib.request.Request(
                 "https://slack.com/api/files.getUploadURLExternal",
-                data=get_url_payload,
+                data=get_url_params,
                 headers={
                     "Authorization": f"Bearer {slack_token}",
-                    "Content-Type": "application/json",
+                    "Content-Type": "application/x-www-form-urlencoded",
                 },
                 method="POST",
             )

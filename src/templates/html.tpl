@@ -59,12 +59,11 @@
             body {
                 width: 210mm;
                 height: 297mm;
-                margin: 20mm; /* Adjust as necessary */
+                margin: 20mm;
             }
             table {
-                table-layout: fixed; /* This will make all columns equal width */
+                table-layout: fixed;
             }
-            /* Change the font size for print view */
             body, td, th {
                 font-size: 10pt;
             }
@@ -77,6 +76,7 @@
         }
     </style>
     <title>{{- escapeXML ( index . 0 ).Target }} - Trivy Report</title>
+{{/* LINKS_ONLY */}}
     <script>
       window.onload = function() {
         document.querySelectorAll('td.links').forEach(function(linkCell) {
@@ -104,6 +104,7 @@
         });
       };
     </script>
+{{/* END_LINKS_ONLY */}}
   </head>
 <body>
   <div class="container">
@@ -111,9 +112,9 @@
     <h1>{{- escapeXML ( index . 0 ).Target }} - Trivy Report</h1>
     <table style="width: 100%;">
     {{- range . }}
-      <tr class="group-header"><th colspan="6">{{ .Type | toString | escapeXML }}</th></tr>
+      <tr class="group-header"><th colspan="__TOTAL_COLS__">{{ .Type | toString | escapeXML }}</th></tr>
       {{- if (eq (len .Vulnerabilities) 0) }}
-      <tr><th colspan="5">No Vulnerabilities found</th></tr>
+      <tr><th colspan="__TOTAL_COLS__">No Vulnerabilities found</th></tr>
       {{- else }}
       <tr class="sub-header">
         <th>Package</th>
@@ -121,7 +122,9 @@
         <th>Severity</th>
         <th>Installed Version</th>
         <th>Fixed Version</th>
+{{/* LINKS_ONLY */}}
         <th>Links</th>
+{{/* END_LINKS_ONLY */}}
       </tr>
         {{- range .Vulnerabilities }}
       <tr class="severity-{{ escapeXML .Vulnerability.Severity }}">
@@ -130,16 +133,18 @@
         <td class="severity">{{ escapeXML .Vulnerability.Severity }}</td>
         <td class="pkg-version">{{ escapeXML .InstalledVersion }}</td>
         <td>{{ escapeXML .FixedVersion }}</td>
+{{/* LINKS_ONLY */}}
         <td class="links" data-more-links="off">
           {{- range .Vulnerability.References }}
           <a href={{ escapeXML . | printf "%q" }}>{{ escapeXML . }}</a>
           {{- end }}
         </td>
+{{/* END_LINKS_ONLY */}}
       </tr>
         {{- end }}
       {{- end }}
       {{- if (eq (len .Misconfigurations ) 0) }}
-      <tr><th colspan="6">No Misconfigurations found</th></tr>
+      <tr><th colspan="__TOTAL_COLS__">No Misconfigurations found</th></tr>
       {{- else }}
       <tr class="sub-header">
         <th>Type</th>
@@ -156,9 +161,11 @@
         <td class="severity">{{ escapeXML .Severity }}</td>
         <td class="link" data-more-links="off" style="white-space:normal;">
           {{ escapeXML .Message }}
+{{/* LINKS_ONLY */}}
           <br>
             <a href={{ escapeXML .PrimaryURL | printf "%q" }}>{{ escapeXML .PrimaryURL }}</a>
           </br>
+{{/* END_LINKS_ONLY */}}
         </td>
       </tr>
         {{- end }}
