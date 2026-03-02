@@ -45,6 +45,18 @@ inputs:
     description: "Number of days to retain the uploaded artifact."
     required: false
     default: "3"
+  slack-token:
+    description: "Slack Bot OAuth token (xoxb-...) for uploading the report. Requires files:write and chat:write scopes."
+    required: false
+    default: ""
+  slack-channel:
+    description: "Slack channel ID to send the report to (e.g. C0A6S3KNNLW)."
+    required: false
+    default: ""
+  slack-mention:
+    description: 'Slack mention to tag in the message (e.g. "<!subteam^S0A6S3KNNLW>" or "<@U012345>").'
+    required: false
+    default: ""
 
 outputs:
   report-path:
@@ -114,6 +126,18 @@ runs:
 
         if [ "${{ inputs.show-links }}" = "true" ]; then
           ARGS="$ARGS --show-links"
+        fi
+
+        if [ -n "${{ inputs.slack-token }}" ]; then
+          ARGS="$ARGS --slack-token ${{ inputs.slack-token }}"
+        fi
+
+        if [ -n "${{ inputs.slack-channel }}" ]; then
+          ARGS="$ARGS --slack-channel ${{ inputs.slack-channel }}"
+        fi
+
+        if [ -n "${{ inputs.slack-mention }}" ]; then
+          ARGS="$ARGS --slack-mention \"${{ inputs.slack-mention }}\""
         fi
 
         python "$ACTION_ROOT/src/scan.py" $ARGS

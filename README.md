@@ -39,6 +39,9 @@ jobs:
           upload-artifact: "true"         # optional (default: true)
           artifact-name: "trivy-report"   # optional (default: trivy-vulnerability-report)
           retention-days: "3"             # optional (default: 3)
+          slack-token: ${{ secrets.SLACK_BOT_TOKEN }}  # optional
+          slack-channel: "C0A6S3KNNLW"    # optional – Slack channel ID
+          slack-mention: "<!subteam^S0A6S3KNNLW>"  # optional – tag a user group or user
 ```
 
 The action will:
@@ -63,6 +66,9 @@ The action will:
 | `upload-artifact` | no | `true` | Upload report as artifact |
 | `artifact-name` | no | `trivy-vulnerability-report` | Artifact name |
 | `retention-days` | no | `3` | Number of days to retain the artifact |
+| `slack-token` | no | `""` | Slack Bot OAuth token for uploading the report |
+| `slack-channel` | no | `""` | Slack channel ID to send the report to |
+| `slack-mention` | no | `""` | Slack mention to tag (e.g. `<!subteam^ID>`, `<@U...>`) |
 
 ### Outputs
 
@@ -74,7 +80,26 @@ The action will:
 
 ```bash
 pip install -r requirements.txt
-python src/scan.py --repo oci://registry.example.com/my-chart --version 1.0.0
+
+# Scan a local chart archive with a custom registry, filtering only critical and high severities
+python src/scan.py \
+  --repo path/to/my-chart-1.0.0.tgz \
+  --registry AWS_ACCOUNT_ID.dkr.ecr.eu-central-1.amazonaws.com \
+  --severity-levels CRITICAL,HIGH
+
+# Scan a remote chart
+python src/scan.py \
+  --repo oci://registry.example.com/my-chart \
+  --version 1.0.0
+
+# Scan and send report to Slack
+python src/scan.py \
+  --repo path/to/my-chart-1.0.0.tgz \
+  --registry AWS_ACCOUNT_ID.dkr.ecr.eu-central-1.amazonaws.com \
+  --severity-levels CRITICAL,HIGH \
+  --slack-token xoxb-YOUR-TOKEN \
+  --slack-channel C0A6S3KNNLW \
+  --slack-mention '<!subteam^S0A6S4KYLOW>'
 ```
 
 Run `python src/scan.py --help` for all available options.

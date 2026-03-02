@@ -1,5 +1,6 @@
 import argparse
 import glob
+import json
 import logging
 import os
 import re
@@ -8,6 +9,7 @@ import subprocess
 import tarfile
 import tempfile
 import time
+import urllib.request
 
 import yaml
 
@@ -232,6 +234,9 @@ class VulnerabilityScanner:
         exclude_patterns=None,
         show_links=True,
         severity_levels="LOW,MEDIUM,HIGH,CRITICAL",
+        slack_token=None,
+        slack_channel=None,
+        slack_mention=None,
     ):
         exclude_patterns = exclude_patterns or []
         scannable = [
@@ -350,6 +355,11 @@ class VulnerabilityScanner:
                 f"Vulnerability scanning complete. Report saved as {report_file_path}"
             )
 
+        # Send to Slack if configured
+        final_report = pdf_report_path if os.path.exists(pdf_report_path) else report_file_path
+        if slack_token and slack_channel and os.path.exists(final_report):
+            self.send_to_slack(final_report, slack_token, slack_channel, slack_mention)
+
     @staticmethod
     def _sort_report_by_severity(report_file_path):
         """Sort vulnerability table rows by severity: CRITICAL > HIGH > MEDIUM > LOW."""
@@ -398,6 +408,89 @@ class VulnerabilityScanner:
             logging.info("Report sorted by severity level")
         except Exception as e:
             logging.warning(f"Could not sort report by severity: {e}")
+
+    @staticmethod
+    def send_to_slack(report_path, slack_token, slack_channel, slack_mention=None):
+        """Upload the report file to a Slack channel and optionally mention a user/group."""
+        if not slack_token or not slack_channel:
+            logging.debug("Slack token or channel not provided, skipping Slack upload.")
+            return
+
+        logging.info(f"Uploading report to Slack channel {slack_channel}")
+
+        # Post an initial message (with optional mention)
+        message = ":rotating_light: *Trivy Vulnerability Report*"
+        if slack_mention:
+            message = f"{slack_mention} {message}"
+
+        try:
+            # Upload the file using files.upload v2 API
+            file_size = os.path.getsize(report_path)
+            file_name = os.path.basename(report_path)
+
+            # Step 1: Get upload URL
+            get_url_payload = json.dumps(
+                {"filename": file_name, "length": file_size}
+            ).encode()
+            get_url_req = urllib.request.Request(
+                "https://slack.com/api/files.getUploadURLExternal",
+                data=get_url_payload,
+                headers={
+                    "Authorization": f"Bearer {slack_token}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(get_url_req) as resp:
+                url_data = json.loads(resp.read().decode())
+
+            if not url_data.get("ok"):
+                logging.error(f"Slack getUploadURLExternal failed: {url_data.get('error')}")
+                return
+
+            upload_url = url_data["upload_url"]
+            file_id = url_data["file_id"]
+
+            # Step 2: Upload file content
+            with open(report_path, "rb") as f:
+                file_data = f.read()
+
+            upload_req = urllib.request.Request(
+                upload_url,
+                data=file_data,
+                headers={"Content-Type": "application/octet-stream"},
+                method="POST",
+            )
+            with urllib.request.urlopen(upload_req) as resp:
+                resp.read()
+
+            # Step 3: Complete the upload and share to channel
+            complete_payload = json.dumps(
+                {
+                    "files": [{"id": file_id, "title": file_name}],
+                    "channel_id": slack_channel,
+                    "initial_comment": message,
+                }
+            ).encode()
+            complete_req = urllib.request.Request(
+                "https://slack.com/api/files.completeUploadExternal",
+                data=complete_payload,
+                headers={
+                    "Authorization": f"Bearer {slack_token}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(complete_req) as resp:
+                complete_data = json.loads(resp.read().decode())
+
+            if complete_data.get("ok"):
+                logging.info("Report uploaded to Slack successfully.")
+            else:
+                logging.error(f"Slack completeUploadExternal failed: {complete_data.get('error')}")
+
+        except Exception as e:
+            logging.error(f"Failed to send report to Slack: {e}")
 
     @staticmethod
     def _find_chrome():
@@ -470,6 +563,26 @@ def main():
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="The log level.",
     )
+    parser.add_argument(
+        "--slack-token",
+        type=str,
+        default=None,
+        help="Slack Bot OAuth token (xoxb-...) for uploading the report. "
+        "Requires chat:write and files:write scopes.",
+    )
+    parser.add_argument(
+        "--slack-channel",
+        type=str,
+        default=None,
+        help="Slack channel ID to send the report to (e.g. C0A6S3KNNLW).",
+    )
+    parser.add_argument(
+        "--slack-mention",
+        type=str,
+        default=None,
+        help="Slack mention to include in the message "
+        '(e.g. "<!subteam^S0A6S3KNNLW>" for a user group, or "<@U012345>" for a user).',
+    )
     args = parser.parse_args()
 
     # Configure logging
@@ -499,6 +612,9 @@ def main():
         exclude_patterns=exclude_patterns,
         show_links=args.show_links,
         severity_levels=severity,
+        slack_token=args.slack_token,
+        slack_channel=args.slack_channel,
+        slack_mention=args.slack_mention,
     )
 
 
