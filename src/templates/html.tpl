@@ -2,76 +2,174 @@
 <html>
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
         body {
-            font-family: 'Roboto', sans-serif;
-            background-color: #fafafa;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f8f9fa;
+            color: #212529;
+            font-size: 13px;
+            line-height: 1.4;
+            padding: 16px;
         }
         h1 {
             text-align: center;
-        }
-        .group-header th {
-            font-size: 200%;
-            background-color: #007BFF;
-            color: white;
-        }
-        .sub-header th {
-            font-size: 150%;
-        }
-        table, th, td {
-            border: 1px solid black;
-            border-collapse: collapse;
-            white-space: nowrap;
-            padding: .3em;
-            text-align: center;
+            font-size: 1.4em;
+            font-weight: 700;
+            margin: 12px 0 16px;
+            color: #1a1a2e;
         }
         table {
-            margin: 0 auto;
-            padding: 10px;
             width: 100%;
-            table-layout: fixed;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            table-layout: auto;
         }
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 6px 10px;
+            text-align: left;
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        /* Group header — image name */
+        .group-header th {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #ffffff;
+            font-size: 1.1em;
+            font-weight: 600;
+            padding: 10px 12px;
+            text-align: left;
+            letter-spacing: 0.02em;
+        }
+        /* Column sub-header */
+        .sub-header th {
+            background-color: #e9ecef;
+            color: #495057;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 6px 10px;
+            white-space: nowrap;
+        }
+        /* Severity badge */
         .severity {
+            display: inline-block;
+            min-width: 68px;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 0.82em;
             text-align: center;
-            font-weight: bold;
-            color: #fafafa;
+            color: #fff;
+            letter-spacing: 0.03em;
         }
-        .severity-LOW .severity { background-color: #5fbb31; }
-        .severity-MEDIUM .severity { background-color: #e9c600; }
-        .severity-HIGH .severity { background-color: #ff8800; }
-        .severity-CRITICAL .severity { background-color: #e40000; }
-        .severity-UNKNOWN .severity { background-color: #747474; }
-        .severity-LOW { background-color: #5fbb3160; }
-        .severity-MEDIUM { background-color: #e9c60060; }
-        .severity-HIGH { background-color: #ff880060; }
-        .severity-CRITICAL { background-color: #e4000060; }
-        .severity-UNKNOWN { background-color: #74747460; }
-        table tr td:first-of-type {
-            font-weight: bold;
+        .severity-CRITICAL .severity { background-color: #dc3545; }
+        .severity-HIGH .severity     { background-color: #fd7e14; }
+        .severity-MEDIUM .severity   { background-color: #ffc107; color: #212529; }
+        .severity-LOW .severity      { background-color: #28a745; }
+        .severity-UNKNOWN .severity  { background-color: #6c757d; }
+        /* Row tint */
+        .severity-CRITICAL { background-color: #dc354510; }
+        .severity-HIGH     { background-color: #fd7e1410; }
+        .severity-MEDIUM   { background-color: #ffc10710; }
+        .severity-LOW      { background-color: #28a74510; }
+        .severity-UNKNOWN  { background-color: #6c757d10; }
+        /* Row hover */
+        tbody tr:hover {
+            background-color: #f1f3f5;
         }
-        tr:hover {
-            background-color: #f5f5f5;
+        /* Package name */
+        .pkg-name {
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+        /* Version columns */
+        .pkg-version, td:nth-child(5) {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9em;
+        }
+        /* No-vulnerability row */
+        tr th[colspan] {
+            text-align: center;
+        }
+        /* Links column */
+        td.links {
+            max-width: 260px;
+            font-size: 0.82em;
+        }
+        td.links a {
+            display: block;
+            color: #0366d6;
+            text-decoration: none;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin: 1px 0;
+        }
+        td.links a:hover {
+            text-decoration: underline;
+        }
+        td.links[data-more-links="off"] a:nth-child(n+4):not(.toggle-more-links) {
+            display: none;
+        }
+        a.toggle-more-links {
+            color: #6c757d;
+            font-style: italic;
+            cursor: pointer;
+            display: block;
+            margin-top: 2px;
+        }
+        /* Misconfiguration message */
+        td.link {
+            font-size: 0.88em;
+            line-height: 1.35;
+        }
+        td.link a {
+            color: #0366d6;
+            word-break: break-all;
+        }
+        hr {
+            border: none;
+            border-top: 1px solid #dee2e6;
+            margin: 8px 0;
         }
 
         @media print {
             body {
-                width: 210mm;
-                height: 297mm;
-                margin: 20mm;
+                padding: 0;
+                font-size: 9pt;
             }
-            table {
-                table-layout: fixed;
+            .group-header th {
+                background: #1a1a2e !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
-            body, td, th {
-                font-size: 10pt;
+            .sub-header th {
+                background-color: #e9ecef !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
-            td, th {
-                word-wrap: break-word;
+            .severity {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
             tr:hover {
-                background-color: #ffffff;
+                background-color: transparent;
+            }
+            table {
+                page-break-inside: auto;
+            }
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
             }
         }
     </style>
@@ -107,10 +205,9 @@
 {{/* END_LINKS_ONLY */}}
   </head>
 <body>
-  <div class="container">
     {{- if . }}
-    <h1>{{- escapeXML ( index . 0 ).Target }} - Trivy Report</h1>
-    <table style="width: 100%;">
+    <h1>{{- escapeXML ( index . 0 ).Target }}</h1>
+    <table>
     {{- range . }}
       <tr class="group-header"><th colspan="__TOTAL_COLS__">{{ .Type | toString | escapeXML }}</th></tr>
       {{- if (eq (len .Vulnerabilities) 0) }}
@@ -176,6 +273,5 @@
     <h1>Trivy Returned Empty Report</h1>
     {{- end }}
     <hr>
-  </div>
 </body>
 </html>

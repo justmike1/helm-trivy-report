@@ -9,8 +9,7 @@ Scans all container images in a Helm chart for known vulnerabilities using Trivy
 ├── src/
 │   ├── scan.py                     # Main vulnerability scanner
 │   └── templates/
-│       ├── html.tpl                # HTML report template (with links)
-│       └── html-no-links.tpl       # HTML report template (without links)
+│       └── html.tpl                # HTML report template (links toggled at build time)
 ├── requirements.txt                # Python dependencies
 ├── README.md
 └── LICENSE
@@ -32,6 +31,7 @@ jobs:
           version: "1.0.0"               # optional
           registry: ""                    # optional – override image registry
           exclude-images: "postgresql"    # optional – comma-separated
+          exclude-images-regex: "tickets-.*|legacy-"  # optional – regex pattern
           severity-levels: "HIGH,CRITICAL"# optional (default: LOW,MEDIUM,HIGH,CRITICAL)
           show-links: "false"             # optional (default: false)
           retries: "3"                    # optional (default: 3)
@@ -72,6 +72,7 @@ After installing the app to your workspace, **invite the bot to the target chann
 | `version` | no | `""` | Helm chart version |
 | `registry` | no | `""` | Registry prefix for images |
 | `exclude-images` | no | `""` | Comma-separated substrings to exclude |
+| `exclude-images-regex` | no | `""` | Regex pattern to exclude matching images |
 | `severity-levels` | no | `LOW,MEDIUM,HIGH,CRITICAL` | Severity levels to include |
 | `show-links` | no | `false` | Show vulnerability reference links |
 | `retries` | no | `3` | Retry count for failed scans |
@@ -99,6 +100,12 @@ python src/scan.py \
   --repo path/to/my-chart-1.0.0.tgz \
   --registry AWS_ACCOUNT_ID.dkr.ecr.eu-central-1.amazonaws.com \
   --severity-levels CRITICAL,HIGH
+
+# Exclude images by substring or regex
+python src/scan.py \
+  --repo ./helm \
+  --exclude-images postgresql,redis \
+  --exclude-images-regex 'tickets-.*|legacy-'
 
 # Scan a remote chart
 python src/scan.py \

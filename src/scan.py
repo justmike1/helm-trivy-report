@@ -270,6 +270,7 @@ class VulnerabilityScanner:
         self,
         retries=3,
         exclude_patterns=None,
+        exclude_regex=None,
         show_links=True,
         severity_levels="LOW,MEDIUM,HIGH,CRITICAL",
         slack_token=None,
@@ -277,15 +278,25 @@ class VulnerabilityScanner:
         slack_mention=None,
     ):
         exclude_patterns = exclude_patterns or []
-        scannable = [
-            img
-            for img in self.images
-            if not any(pattern in img for pattern in exclude_patterns)
-        ]
-        if exclude_patterns:
-            excluded = len(self.images) - len(scannable)
+        exclude_re = re.compile(exclude_regex) if exclude_regex else None
+
+        scannable = []
+        for img in self.images:
+            if any(pattern in img for pattern in exclude_patterns):
+                continue
+            if exclude_re and exclude_re.search(img):
+                continue
+            scannable.append(img)
+
+        excluded = len(self.images) - len(scannable)
+        if excluded:
+            reasons = []
+            if exclude_patterns:
+                reasons.append(f"substrings: {', '.join(exclude_patterns)}")
+            if exclude_re:
+                reasons.append(f"regex: {exclude_regex}")
             logging.info(
-                f"Scanning {len(scannable)} images (excluded {excluded} matching: {', '.join(exclude_patterns)})"
+                f"Scanning {len(scannable)} images (excluded {excluded} matching {'; '.join(reasons)})"
             )
         else:
             logging.info(f"Scanning {len(scannable)} images")
@@ -577,6 +588,12 @@ def main():
         help="Comma-separated list of substrings to exclude images (e.g. --exclude-images postgresql,redis).",
     )
     parser.add_argument(
+        "--exclude-images-regex",
+        type=str,
+        default=None,
+        help="Regex pattern to exclude matching images (e.g. --exclude-images-regex 'tickets-.*|legacy-').",
+    )
+    parser.add_argument(
         "--severity-levels",
         type=str,
         default="LOW,MEDIUM,HIGH,CRITICAL",
@@ -648,6 +665,7 @@ def main():
     scanner.scan(
         retries=args.retries,
         exclude_patterns=exclude_patterns,
+        exclude_regex=args.exclude_images_regex,
         show_links=args.show_links,
         severity_levels=severity,
         slack_token=args.slack_token,

@@ -17,6 +17,10 @@ inputs:
     description: "Comma-separated substrings to exclude images (e.g. postgresql,redis)."
     required: false
     default: ""
+  exclude-images-regex:
+    description: "Regex pattern to exclude matching images (e.g. 'tickets-.*|legacy-')."
+    required: false
+    default: ""
   severity-levels:
     description: "Comma-separated severity levels to include."
     required: false
@@ -118,6 +122,10 @@ runs:
 
         if [ -n "${{ inputs.exclude-images }}" ]; then
           ARGS="$ARGS --exclude-images ${{ inputs.exclude-images }}"
+        fi
+
+        if [ -n "${{ inputs.exclude-images-regex }}" ]; then
+          ARGS="$ARGS --exclude-images-regex '${{ inputs.exclude-images-regex }}'"
         fi
 
         ARGS="$ARGS --severity-levels ${{ inputs.severity-levels }}"
