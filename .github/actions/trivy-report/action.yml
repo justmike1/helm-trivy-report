@@ -1,0 +1,131 @@
+name: "Helm Trivy Report"
+description: "Scan all container images in a Helm chart for vulnerabilities using Trivy and generate a consolidated HTML/PDF report."
+
+inputs:
+  repo:
+    description: "Helm chart repository/path to scan (e.g. oci://..., ./chart, or a .tgz file path)."
+    required: true
+  version:
+    description: "Helm chart version to scan."
+    required: false
+    default: ""
+  registry:
+    description: "Registry prefix to apply to discovered images (e.g. 123456789.dkr.ecr.eu-central-1.amazonaws.com)."
+    required: false
+    default: ""
+  exclude-images:
+    description: "Comma-separated substrings to exclude images (e.g. postgresql,redis)."
+    required: false
+    default: ""
+  severity-levels:
+    description: "Comma-separated severity levels to include."
+    required: false
+    default: "LOW,MEDIUM,HIGH,CRITICAL"
+  show-links:
+    description: "Show vulnerability reference links in the report."
+    required: false
+    default: "false"
+  retries:
+    description: "Number of retries for failed image scans."
+    required: false
+    default: "3"
+  log-level:
+    description: "Log level (DEBUG, INFO, WARNING, ERROR)."
+    required: false
+    default: "INFO"
+  upload-artifact:
+    description: "Whether to upload the report as a GitHub Actions artifact."
+    required: false
+    default: "true"
+  artifact-name:
+    description: "Name of the uploaded artifact."
+    required: false
+    default: "trivy-vulnerability-report"
+
+outputs:
+  report-path:
+    description: "Path to the generated report file."
+    value: ${{ steps.scan.outputs.report-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Trivy
+      shell: bash
+      run: |
+        if ! command -v trivy &> /dev/null; then
+          echo "Installing Trivy..."
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+        else
+          echo "Trivy already installed: $(trivy --version)"
+        fi
+
+    - name: Install Helm
+      shell: bash
+      run: |
+        if ! command -v helm &> /dev/null; then
+          echo "Installing Helm..."
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        else
+          echo "Helm already installed: $(helm version --short)"
+        fi
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+
+    - name: Resolve action root
+      id: root
+      shell: bash
+      run: echo "path=$(cd "${{ github.action_path }}/../../.." && pwd)" >> "$GITHUB_OUTPUT"
+
+    - name: Install Python dependencies
+      shell: bash
+      run: pip install -r "${{ steps.root.outputs.path }}/requirements.txt"
+
+    - name: Run Trivy vulnerability scan
+      id: scan
+      shell: bash
+      env:
+        ACTION_ROOT: ${{ steps.root.outputs.path }}
+      run: |
+        ARGS="--repo ${{ inputs.repo }}"
+
+        if [ -n "${{ inputs.version }}" ]; then
+          ARGS="$ARGS --version ${{ inputs.version }}"
+        fi
+
+        if [ -n "${{ inputs.registry }}" ]; then
+          ARGS="$ARGS --registry ${{ inputs.registry }}"
+        fi
+
+        if [ -n "${{ inputs.exclude-images }}" ]; then
+          ARGS="$ARGS --exclude-images ${{ inputs.exclude-images }}"
+        fi
+
+        ARGS="$ARGS --severity-levels ${{ inputs.severity-levels }}"
+        ARGS="$ARGS --retries ${{ inputs.retries }}"
+        ARGS="$ARGS --log-level ${{ inputs.log-level }}"
+
+        if [ "${{ inputs.show-links }}" = "true" ]; then
+          ARGS="$ARGS --show-links"
+        fi
+
+        python "$ACTION_ROOT/src/scan.py" $ARGS
+
+        # Detect generated report (PDF preferred, fall back to HTML)
+        if [ -f "report.pdf" ]; then
+          echo "report-path=$(pwd)/report.pdf" >> "$GITHUB_OUTPUT"
+        elif [ -f "report.html" ]; then
+          echo "report-path=$(pwd)/report.html" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning::No report file found"
+        fi
+
+    - name: Upload report artifact
+      if: inputs.upload-artifact == 'true' && steps.scan.outputs.report-path != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.scan.outputs.report-path }}
