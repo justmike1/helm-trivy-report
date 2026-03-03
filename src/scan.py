@@ -208,6 +208,226 @@ class VulnerabilityScanner:
         tmp.close()
         return tmp.name
 
+    @staticmethod
+    def _get_report_shell(show_links=True):
+        """Return (header, footer) HTML strings that wrap the per-image fragments."""
+        links_script = ""
+        if show_links:
+            links_script = """
+    <script>
+      window.onload = function() {
+        document.querySelectorAll('td.links').forEach(function(linkCell) {
+          var links = [].concat.apply([], linkCell.querySelectorAll('a'));
+          [].sort.apply(links, function(a, b) {
+            return a.href > b.href ? 1 : -1;
+          });
+          links.forEach(function(link, idx) {
+            if (links.length > 3 && 3 === idx) {
+              var toggleLink = document.createElement('a');
+              toggleLink.innerText = "Toggle more links";
+              toggleLink.href = "#toggleMore";
+              toggleLink.setAttribute("class", "toggle-more-links");
+              linkCell.appendChild(toggleLink);
+            }
+            linkCell.appendChild(link);
+          });
+        });
+        document.querySelectorAll('a.toggle-more-links').forEach(function(toggleLink) {
+          toggleLink.onclick = function() {
+            var expanded = toggleLink.parentElement.getAttribute("data-more-links");
+            toggleLink.parentElement.setAttribute("data-more-links", "on" === expanded ? "off" : "on");
+            return false;
+          };
+        });
+      };
+    </script>"""
+
+        header = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {{
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }}
+        body {{
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f8f9fa;
+            color: #212529;
+            font-size: 13px;
+            line-height: 1.4;
+            padding: 16px;
+        }}
+        h1 {{
+            text-align: center;
+            font-size: 1.6em;
+            font-weight: 700;
+            margin: 12px 0 20px;
+            color: #1a1a2e;
+        }}
+        .image-title {{
+            font-size: 1.15em;
+            font-weight: 600;
+            margin: 18px 0 6px;
+            padding: 6px 10px;
+            color: #16213e;
+            border-left: 4px solid #16213e;
+            background-color: #e9ecef;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            table-layout: auto;
+        }}
+        th, td {{
+            border: 1px solid #dee2e6;
+            padding: 6px 10px;
+            text-align: left;
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }}
+        .group-header th {{
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #ffffff;
+            font-size: 1.1em;
+            font-weight: 600;
+            padding: 10px 12px;
+            text-align: left;
+            letter-spacing: 0.02em;
+        }}
+        .sub-header th {{
+            background-color: #e9ecef;
+            color: #495057;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 6px 10px;
+            white-space: nowrap;
+        }}
+        .severity {{
+            display: inline-block;
+            min-width: 68px;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: 0.82em;
+            text-align: center;
+            color: #fff;
+            letter-spacing: 0.03em;
+        }}
+        .severity-CRITICAL .severity {{ background-color: #dc3545; }}
+        .severity-HIGH .severity     {{ background-color: #fd7e14; }}
+        .severity-MEDIUM .severity   {{ background-color: #ffc107; color: #212529; }}
+        .severity-LOW .severity      {{ background-color: #28a745; }}
+        .severity-UNKNOWN .severity  {{ background-color: #6c757d; }}
+        .severity-CRITICAL {{ background-color: #dc354510; }}
+        .severity-HIGH     {{ background-color: #fd7e1410; }}
+        .severity-MEDIUM   {{ background-color: #ffc10710; }}
+        .severity-LOW      {{ background-color: #28a74510; }}
+        .severity-UNKNOWN  {{ background-color: #6c757d10; }}
+        tbody tr:hover {{
+            background-color: #f1f3f5;
+        }}
+        .pkg-name {{
+            font-weight: 600;
+            color: #1a1a2e;
+        }}
+        .pkg-version, td:nth-child(5) {{
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9em;
+        }}
+        tr th[colspan] {{
+            text-align: center;
+        }}
+        td.links {{
+            max-width: 260px;
+            font-size: 0.82em;
+        }}
+        td.links a {{
+            display: block;
+            color: #0366d6;
+            text-decoration: none;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin: 1px 0;
+        }}
+        td.links a:hover {{
+            text-decoration: underline;
+        }}
+        td.links[data-more-links="off"] a:nth-child(n+4):not(.toggle-more-links) {{
+            display: none;
+        }}
+        a.toggle-more-links {{
+            color: #6c757d;
+            font-style: italic;
+            cursor: pointer;
+            display: block;
+            margin-top: 2px;
+        }}
+        td.link {{
+            font-size: 0.88em;
+            line-height: 1.35;
+        }}
+        td.link a {{
+            color: #0366d6;
+            word-break: break-all;
+        }}
+        hr {{
+            border: none;
+            border-top: 1px solid #dee2e6;
+            margin: 8px 0;
+        }}
+
+        @media print {{
+            body {{
+                padding: 0;
+                font-size: 9pt;
+            }}
+            .group-header th {{
+                background: #1a1a2e !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }}
+            .sub-header th {{
+                background-color: #e9ecef !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }}
+            .severity {{
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }}
+            tr:hover {{
+                background-color: transparent;
+            }}
+            table {{
+                page-break-inside: auto;
+            }}
+            tr {{
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }}
+        }}
+    </style>
+    <title>Trivy Vulnerability Report</title>{links_script}
+</head>
+<body>
+    <h1>Trivy Vulnerability Report</h1>
+"""
+
+        footer = """
+</body>
+</html>
+"""
+        return header, footer
+
     def run_trivy_scan(
         self, image, show_links=True, severity_levels="LOW,MEDIUM,HIGH,CRITICAL"
     ):
@@ -338,10 +558,12 @@ class VulnerabilityScanner:
                 f"{len(failed)} images failed after all retries: {', '.join(failed)}"
             )
 
-        # Combine all HTML files into final report
+        # Combine all HTML fragment files into a single report
         report_file_path = os.path.join(os.getcwd(), "report.html")
+        header, footer = self._get_report_shell(show_links=show_links)
         written = 0
         with open(report_file_path, "w") as outfile:
+            outfile.write(header)
             for html_file in self.html_files:
                 if os.path.exists(html_file):
                     with open(html_file) as infile:
@@ -349,6 +571,7 @@ class VulnerabilityScanner:
                     written += 1
                 else:
                     logging.warning(f"Missing HTML report: {html_file}")
+            outfile.write(footer)
         logging.info(
             f"Combined {written}/{len(self.html_files)} scan results into report"
         )
